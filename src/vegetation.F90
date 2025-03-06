@@ -60,7 +60,7 @@ subroutine vegn_CNW_budget_fast(vegn, forcing)
   call vegn_photosynthesis(forcing, vegn)
 
   ! Phloem transport, Mazen Nakad, 10/08/2023
-  call vegn_Phloem_transport(forcing,vegn)
+!  call vegn_Phloem_transport(forcing,vegn)
 #else
   ! Water supply from soil directly
   call SoilWaterSupply(vegn)
@@ -551,6 +551,8 @@ subroutine vegn_respiration(forcing,vegn)
   real :: Acambium  ! cambium area, m2/tree
   real :: fnsc,NSCtarget ! used to regulation respiration rate
   real :: r_Nfix    ! respiration due to N fixation
+  real :: Cph, Sr, Ss, phloem_demand   ! necessary sugar in the phloem at this time step !!!!!!!!!!!!!!!!!!!!!!!!!!!! mazen
+
   integer :: i
 
   !-----------------------
@@ -593,10 +595,30 @@ subroutine vegn_respiration(forcing,vegn)
        cc%resp = cc%resl + cc%resr + cc%resg/steps_per_day   !kgC tree-1 step-1
        cc%resp = min(cc%resp,max(0.0,cc%nsc+cc%gpp-cc%resp)) ! Hack, Weng 09/24/2023
        cc%npp  = cc%gpp  - cc%resp ! kgC tree-1 step-1
+       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!mazen
+       cc%DR_stem  = r_stem                 !respiration demand by the stem Kg C/step
+       cc%DR_root  = cc%resr                !respiration demand by the root Kg C/step
+       cc%DGR_root = cc%resg_root/steps_per_day  !growth respiration demand by root Kg C/step
+       cc%DGR_stem = cc%resg_stem/steps_per_day  !growth respiration demand by stem Kg C/step
+       cc%DG_root  = cc%growth_root/steps_per_day !growth demand by root Kg C/step
+       cc%DG_stem  = cc%growth_stem/steps_per_day !growth demand by stem Kg C/step
+       Sr = (cc%DR_root + cc%DGR_root + cc%DG_root)*Mw_sucr/(12*mol_C) !kg sucrose/step
+       Ss = (cc%DR_stem + cc%DGR_stem + cc%DG_stem)*Mw_sucr/(12*mol_C) !kg sucrose/step
+       Cph = - ( 1000000*(cc%psi_leaf + cc%psi_stem)/(2*Rgas*forcing%tair) )*(Mw_sucr*cc%height*sp%p_thickness*(PI*cc%DBH)**2) ! Kg sucrose
 
+       phloem_demand = (Cph - cc%bph*Mw_sucr/(12*mol_C)) + Sr + Ss !kg sucrose/step
+       cc%bph = Cph*(12*mol_C)/Mw_sucr !Kg C
        ! Update NSC and NSN
+#ifdef Phloem_test
+       cc%nsc = cc%nsc + cc%gpp - phloem_demand*12*mol_C/Mw_sucr - r_leaf - cc%resg_leaf/steps_per_day - cc%resg_seed/steps_per_day ! kgC / step
+#else
        cc%nsc = cc%nsc + cc%npp
+#endif
        cc%NSN = cc%NSN + cc%fixedN
+       !write(*,*) "bph, psi", cc%bph,100000*(cc%psi_leaf + cc%psi_stem)/2
+
+
+
      end associate
   enddo ! all cohorts
 
@@ -743,8 +765,23 @@ subroutine vegn_growth(vegn)
            dSeed=  Nsupplyratio * dSeed
         endif
       endif
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!mazen
+      cc%resg_root   = 0.5 * dBR
+      cc%resg_leaf   = 0.5 * dBL
+      cc%resg_seed   = 0.5 * dSeed
+      cc%resg_stem   = 0.5 * dBSW
+      cc%resg        = cc%resg_root + cc%resg_leaf + cc%resg_seed + cc%resg_stem !  daily
+      cc%growth_root = dBR
+      cc%growth_stem = dBSW
+#ifdef Phloem_test
+      cc%NSC   = cc%NSC - dBL -dSeed
+#else
       cc%NSC   = cc%NSC   - dBR - dBL -dSeed - dBSW
-      cc%resg  = 0.5 * (dBR+dBL+dSeed+dBSW) !  daily
+#endif
+
+
+
+
 #ifndef GrowthOFF
       !update biomass pools
       cc%bl    = cc%bl    + dBL
@@ -1013,7 +1050,7 @@ subroutine vegn_tissue_turnover(vegn)
      dNR    = cc%rootN * alpha_R
 
      dAleaf = BL2Aleaf(dBL,cc)
-
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! this also needs to be changed mazen???
      !    Retranslocation to NSC and NSN
      cc%nsc = cc%nsc + l_fract  * (dBL + dBR + dBStem)
      cc%NSN = cc%NSN + retransN * (dNL + dNR + dNStem)
@@ -1145,7 +1182,7 @@ subroutine Seasonal_fall(cc,vegn)
      ! Put plant water into the first soil layer
      vegn%wcl(1) = vegn%wcl(1) + cc%nindivs*(dWLeaf+dWStem)/(thksl(1)*1000.0)
 #endif
-
+     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! this needs to be changed  mazen????
      !Retranslocation to NSC and NSN
      cc%nsc = cc%nsc + l_fract  * (dBL + dBR + dBStem)
      cc%NSN = cc%NSN + retransN * (dNL + dNR + dNStem)
@@ -2227,8 +2264,9 @@ subroutine initialize_cohorts(vegn)
       cp%nsc     = init_cohort_nsc(i)
       cp%bsw     = init_cohort_bsw(i)
       cp%bHW     = init_cohort_bHW(i)
+      cp%bph     = init_cohort_phloem(i)           !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!mazen
       btotal     = cp%bsw + cp%bHW  ! kgC /tree
-      call initialize_cohort_from_biomass(cp,btotal,maxval(vegn%psi_soil(:)))
+      call initialize_cohort_from_biomass(cp,btotal,maxval(vegn%psi_soil(:)),vegn%tc_pheno)
    enddo
 end subroutine initialize_cohorts
 
@@ -2281,8 +2319,9 @@ subroutine initialize_vegn_random(vegn)
        cp%nsc     = 0.005
        cp%bsw     = 0.2   ! kgC /tree
        cp%bHW     = 0.0
+       cp%bph     = 0.0                             !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!mazen
        btotal     = cp%bsw + cp%bHW
-       call initialize_cohort_from_biomass(cp,btotal,maxval(vegn%psi_soil(:)))
+       call initialize_cohort_from_biomass(cp,btotal,maxval(vegn%psi_soil(:)),vegn%tc_pheno) !!!!!!!!!!!!!!!!mazen
     enddo
     ! Initial Soil pools and environmental conditions
     vegn%SOC(4) = 0.2 ! kgC m-2
@@ -2296,13 +2335,15 @@ end subroutine initialize_vegn_random
 
 ! ============================================================================
 ! Initialize a cohort by initial biomass and soil water conditions
-subroutine initialize_cohort_from_biomass(cc,btot,psi_s0)
+subroutine initialize_cohort_from_biomass(cc,btot,psi_s0,temp)   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!mazen
   type(cohort_type), intent(inout) :: cc
   real,intent(in)    :: btot ! total biomass per individual, kg C
   real,intent(in)    :: psi_s0 ! Initial stem water potential
+  real,intent(in)    :: temp   ! temperature to calculate initial sugar biomass
 
   !---- local vars ------------
   integer :: j
+
 
   associate(sp=>spdata(cc%species))
     call BM2Architecture(cc,btot)
@@ -2345,6 +2386,11 @@ subroutine initialize_cohort_from_biomass(cc,btot,psi_s0)
     call Update_cohort_vars(cc)
     call plant_psi2water(cc)
 
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!mazen  should I do the same everywhere (use Tc_pheno)?
+    cc%bph = - ( 1000000*(cc%psi_leaf + cc%psi_stem)/(2*Rgas*(temp + 273.16)) )*(Mw_sucr*cc%height*sp%p_thickness*(PI*cc%DBH)**2) ! Kg sucrose
+    cc%bph = cc%bph*(12*mol_C/Mw_sucr)
+    !cc%bph = - (12*mol_C/Mw_sucr)*( 100000*(cc%psi_leaf + cc%psi_stem)/( 2*Rgas*(temp + 273.16) ) )*( Mw_sucr*(cc%height)*(sp%p_thickness)*((PI*cc%DBH)**2) ) ! kgC
+    !write(*,*)'sugar',cc%bph
   end associate
 end subroutine initialize_cohort_from_biomass
 

@@ -46,15 +46,16 @@ r0mort_c    = 0.02,    0.024,   0.024,   0.024,   0.024,   0.024,   ! canopy tre
 A_sd        = 4.0,     9.0,     9.0,     9.0,     9.0,     9.0,     ! Seedling mortality parameter
 AgeRepro    = 0,       5,       5,       5,       5,       5
 /
-
+!!!!!!!!!!!!!!!!!!!!!!!! phloem thickness can be added here, currently it is hardwired as 10 micro meters for all species
 &initial_state_nml
 !!   plant and soil
 init_n_cohorts      = 1, ! total 5
 init_cohort_species = 3,    2,    1,    4,    5,
-init_cohort_nindivs = .02, .001, .001, .001, .001,
-init_cohort_bsw     = 800.,  0.2,  0.2,  0.2,  0.2,
+init_cohort_nindivs = .001, .001, .001, .001, .001,
+init_cohort_bsw     = 50.,  0.2,  0.2,  0.2,  0.2,
 init_cohort_bHW     = 0.0,  0.0,  0.0,  0.0,  0.0,
 init_cohort_nsc     = 0.5,  0.5,  0.5,  0.5,  0.5,
+init_cohort_phloem  = 0.0,  0.0,  0.0,  0.0,  0.0,      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! mazen
 init_fast_soil_C    = 0.5,    ! .1 ! 0.8  ! kg C m-2  ! C/N = 15
 init_slow_soil_C    = 40.0,   ! .1 ! 40.0 ! kg C m-2  ! C/N = 40
 init_Nmineral       = 5.0E-3, ! 402.5E-3, ! kg N m-2
@@ -62,7 +63,7 @@ N_input             = 0.0E-3, ! 20.E-3, ! 2.4E-3 ! kg N m-2 yr-1, N deposit: 0.8
 
 ! Model run
 runID = 'BCI_hydro',       ! for output file name
-model_run_years =  20,    ! 600, ! 1600,
+model_run_years = 150,    ! 600, ! 1600,
 filepath_in = './input/',  ! Climate forcing data
 filepath_out= './output/', ! Output files
 siteLAT = 9.25, ! Latitude of the grid that covers BCI

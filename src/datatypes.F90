@@ -18,6 +18,7 @@
  real, parameter :: mol_air = 28.96440e-3 ! molar mass of air, kg
  real, parameter :: mol_CO2 = 44.00995e-3 ! molar mass of CO2,kg
  real, parameter :: mol_h2o = 18.0e-3 ! molar mass of water, kg
+ real, parameter :: Mw_sucr = 0.3422965 ! molecular weight of sucrose, Kg/mol  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! mazen
  real, parameter :: cpair   = 1010.     ! air heat capapcity (J/kg/K)
  real, parameter :: H2OLv0  = 2.501e6   ! latent heat H2O (J/kg)
  real, parameter :: p_sea   = 101325.  ! atmospheric pressure  (Pa)
@@ -148,6 +149,7 @@ type spec_data_type
   real :: fNSNmax          ! multiplier for NSNmax
   real :: f_N_add
   real :: transT           ! Structural transitional time for canopy layer trees
+  real :: p_thickness      ! phloem thickness (m) !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! mazen
   ! Default C/N ratios
   real :: CNleaf0
   real :: CNroot0
@@ -222,6 +224,7 @@ type :: cohort_type
   real :: bHW    = 0.0 ! biomass of heartwood, kg C/individual
   real :: seedC  = 0.0 ! biomass put aside for future progeny, kg C/individual
   real :: nsc    = 0.0 ! non-structural carbon, kg C/individual
+  real :: bph    = 0.0 ! biomass of the phloem, kg C/individual  !!!!!!!!!!!!!!!!!!!!!!!!!! mazen
 
   ! ----- carbon fluxes
   real :: gpp  = 0.0 ! gross primary productivity kg C/step
@@ -233,6 +236,22 @@ type :: cohort_type
   real :: NPPleaf = 0.0 ! C allocated to leaf, root, and wood
   real :: NPProot = 0.0 !
   real :: NPPwood = 0.0 !
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! mazen
+  real :: DR_stem  = 0.0 ! repiration demand by the stem Kg C/step
+  real :: DR_root  = 0.0 ! respiration demand by the root Kg C/step
+  real :: DGR_root = 0.0 ! growth respiration demand by root Kg C/step
+  real :: DGR_stem = 0.0 ! growth respiration demand by the stem (or sapwood)
+  real :: DG_root   = 0.0 ! growth demand by root Kg C/step
+  real :: DG_stem   = 0.0 ! growth demand by stem Kg C/step
+  !where resg_root + resg_leaf + resg_seed + resg_stem = resg
+  real :: resg_root = 0.0 ! growth respiration by root (daily)
+  real :: resg_leaf = 0.0 ! growth respiration by the leaf (daily)
+  real :: resg_seed = 0.0 ! growth respiration by the seed (daily)
+  real :: resg_stem = 0.0 ! growth respiration by stem or sapwood (daily)
+  real :: growth_root   = 0.0 ! growth demand by root daily
+  real :: growth_stem   = 0.0 ! growth demand by stem daily
+
+  ! this needs to change vegn_growth subroutine
 
   ! for hydraulics-mortality
   integer :: Nrings = 1
@@ -417,6 +436,7 @@ type :: vegn_tile_type
   real :: NSC, SeedC, leafC, rootC, SapwoodC, WoodC
   real :: NSN, SeedN, leafN, rootN, SapwoodN, WoodN
   real :: totSeedC,totSeedN
+  real :: phloemC  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! mazen
   ! for cohort plant types (climate-vegetation relationship, Biome, LM3)
   real :: t_ann  = 0.0 ! annual mean T, degK
   real :: t_cold = 0.0 ! average temperature of the coldest month, degK
@@ -607,6 +627,7 @@ real :: fNSNmax(0:MSPECIES) = 5 ! 5 ! multiplier for NSNmax as sum of potential 
 real :: transT(0:MSPECIES)  = 3 ! Years
 real :: f_cGap(0:MSPECIES)  = 0.1  ! The gaps between trees
 real :: LFR_rate(0:MSPECIES)= 1.0
+real :: p_thickness(0:MSPECIES) = 10.0E-6  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! mazen
 
 ! Leaf parameters
 real :: leaf_size(0:MSPECIES)= 0.04 !
@@ -719,6 +740,7 @@ real :: init_cohort_bsw(N_IniCC_max)     = 0.2  ! initial biomass of sapwood, kg
 real :: init_cohort_bHW(N_IniCC_max)     = 0.0  ! initial biomass of heartwood, kg C/tree
 real :: init_cohort_seedC(N_IniCC_max)   = 0.0  ! initial biomass of seeds, kg C/individual
 real :: init_cohort_nsc(N_IniCC_max)     = 0.5  ! initial non-structural biomass, kg C/
+real :: init_cohort_phloem(N_IniCC_max)  = 0.0  ! initial biomass of the phloem, kg C/individual !!!!!!!!!!!!!!!!!!!!!!!!mazen
 
 ! Initial soil Carbon and Nitrogen for a vegn tile, Weng 2012-10-24
 real :: init_fast_soil_C  = 0.0  ! initial fast soil C, kg C/m2
@@ -771,6 +793,7 @@ namelist /initial_state_nml/ &
     init_cohort_bl, init_cohort_br, init_cohort_bsw,            &
     init_cohort_bHW, init_cohort_seedC, init_cohort_nsc,        &
     init_fast_soil_C, init_slow_soil_C, init_Nmineral, N_input, &
+    init_cohort_phloem,                                         &   !!!!!!!!!!mazen
     ! Model run controls
     filepath_in,filepath_out,runID,N_VegTile,climfile,StartLine,&
     siteLAT,model_run_years,yr_ResetVeg,outputhourly,outputdaily,&
@@ -785,7 +808,7 @@ namelist /soil_data_nml/ soiltype,WaterLeakRate,thksl,  &
 
 ! --------- Vegetation parameter name list ---------
 namelist /vegn_parameters_nml/  diff_S0, alphaDrought,                &
-  pt, phenotype, lifeform,                                            &
+  pt, phenotype, lifeform, p_thickness,                               &    !!!!!!!mazen
   alphaHT,alphaCA,alphaBM,thetaHT,thetaCA,thetaBM,f_taper,f_cGap,     &
   ! Leaf
   LAImax,LAI_light,LMA,Vmax,m_cond,Vannual,ps_wet,c_LLS,leaf_size,    &
@@ -908,6 +931,7 @@ subroutine initialize_PFT_data()
   spdata%thetaCA    = thetaCA
   spdata%alphaBM    = alphaBM
   spdata%thetaBM    = thetaBM
+  spdata%p_thickness= p_thickness  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! mazen
 
   spdata%AgeRepro = AgeRepro
   spdata%v_seed   = v_seed
@@ -1305,7 +1329,7 @@ end function
     real :: btotal ! returned value
     type(cohort_type), intent(in) :: c
 
-    btotal = c%NSC + c%seedC + c%bl + c%br + c%bsw + c%bHW
+    btotal = c%NSC + c%seedC + c%bl + c%br + c%bsw + c%bHW  !+ c%bph !!!!!!!!!!!!!!!!!!!!!!!!!!!!!! added by mazen
   end function
 
   ! ============================================================================

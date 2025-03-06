@@ -6,10 +6,12 @@ FSRCS="src/datatypes.F90 \
        src/BiomeE.F90 \
        src/main.F90"
 
-CPPFLAGS=''
-#CPPFLAGS+="-DHydro_test"
+#CPPFLAGS=''
+CPPFLAGS+="-DHydro_test"
 
 echo $FSRCS
+
+
 
 #gfortran $FSRCS -o ess -I/opt/local/include -L/opt/local/lib -lnetcdff
 #gfortran $FSRCS -o ess -I/Users/eweng/MACPORTS/gcc49-python3/include -L/Users/eweng/MACPORTS/gcc49-python3/lib -lnetcdff
@@ -17,12 +19,16 @@ echo $FSRCS
 
 gfortran $FSRCS $CPPFLAGS -o ess
 
-fparameter='./para_files/parameters_Oscillation.nml'
-echo $fparameter
-cat $fparameter > ./para_files/input.nml
-./ess
 
-rm ./para_files/input.nml
+#fparameter='./para_files/parameters_Oscillation.nml'
+fparameter='./para_files/parameters_BCI_hydro.nml'
+#echo $fparameter
+cat $fparameter > ./para_files/input.nml
+
+
+./ess ./para_files/input.nml
+
+#rm ./para_files/input.nml
 rm ess
 rm esdvm.mod
 rm datatypes.mod

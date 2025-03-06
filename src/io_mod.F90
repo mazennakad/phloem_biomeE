@@ -78,6 +78,7 @@ subroutine vegn_sum_tile(vegn)
   vegn%rootC   = 0.0
   vegn%SapwoodC= 0.0
   vegn%WoodC   = 0.0
+  vegn%phloemC = 0.0 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!mazen
 
   vegn%NSN     = 0.0
   vegn%SeedN   = 0.0
@@ -115,9 +116,11 @@ subroutine vegn_sum_tile(vegn)
        vegn%rootC   = vegn%rootC   + cc%br     * cc%nindivs
        vegn%SapwoodC= vegn%SapwoodC+ cc%bsw    * cc%nindivs
        vegn%woodC   = vegn%woodC   + cc%bHW    * cc%nindivs
+       vegn%phloemC = vegn%phloemC + cc%bph    * cc%nindivs !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!mazen
        vegn%CAI     = vegn%CAI     + cc%Acrown * cc%nindivs
        vegn%LAI     = vegn%LAI     + cc%Aleaf  * cc%nindivs
        vegn%ArootL  = vegn%ArootL  + cc%ArootL * cc%nindivs
+
 
        vegn%NSN     = vegn%NSN   + cc%NSN      * cc%nindivs
        vegn%SeedN   = vegn%SeedN + cc%seedN    * cc%nindivs
@@ -222,6 +225,7 @@ end subroutine Zero_diagnostics
   type(cohort_type), pointer :: cc    ! current cohort
   integer :: i
 
+
   ! Tile summary
   vegn%GPP    = 0.; vegn%fixedN = 0.
   vegn%NPP    = 0.; vegn%Resp   = 0.
@@ -255,7 +259,7 @@ end subroutine Zero_diagnostics
   vegn%dailyfixedN  = vegn%dailyfixedN  + vegn%fixedN
 
   !! Output horly diagnostics
-  If(outputhourly .and. iday > totdays-366*5 ) then !  .and. ihour==12
+  If(outputhourly .and. iday > totdays-365*5 ) then !  .and. ihour==12
     !write(fno1,'(4(I8,","))')vegn%n_cohorts
     do i = 1, vegn%n_cohorts
         cc => vegn%cohorts(i)
@@ -263,8 +267,22 @@ end subroutine Zero_diagnostics
           iyears,idoy,ihour,cc%ccID,cc%species,cc%layer,  &
           cc%nindivs*10000,cc%dbh,cc%height,cc%Acrown,    &
           cc%bl,cc%LAI,cc%gpp,cc%npp,cc%transp,           &
+          !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!mazen (the result is gram sucrose and Pa for leaf/stem water potential)
+          1000*cc%DR_root*Mw_sucr/(12*mol_C),    &
+          1000*cc%DGR_root*Mw_sucr/(12*mol_C),   &
+          1000*cc%DG_root*Mw_sucr/(12*mol_C),    &
+          1000*cc%DR_stem*Mw_sucr/(12*mol_C),    &
+          1000*cc%DGR_stem*Mw_sucr/(12*mol_C),   &
+          1000*cc%DG_stem*Mw_sucr/(12*mol_C),    &
+
+#ifdef Phloem_test
+          !1000*cc%bph*Mw_sucr/(12*mol_C),        &
+          cc%bph,        & !KgC
+          cc%nsc,        &
+#endif
+
 #ifdef Hydro_test
-          cc%psi_leaf,cc%psi_stem,cc%W_leaf,cc%W_stem
+          1000000*cc%psi_leaf,1000000*cc%psi_stem,cc%W_leaf,cc%W_stem
 #else
           cc%W_supply,cc%W_scale
 #endif
@@ -322,7 +340,8 @@ subroutine daily_diagnostics(vegn,iyears,idoy,iday,fno3,fno4)
        vegn%NSN*1000, vegn%SeedN*1000, vegn%leafN*1000,         &
        vegn%rootN*1000, vegn%SapwoodN *1000, vegn%WoodN *1000,  &
        (vegn%SOC(j),j=1,5), (vegn%SON(j)*1000,j=1,5),           &
-       vegn%mineralN*1000,vegn%dailyNup*1000,vegn%kp(1)
+       vegn%mineralN*1000,vegn%dailyNup*1000,vegn%kp(1),        &
+       vegn%phloemC !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!mazen
   endif
 
   ! Update yearly and zero daily, cohorts
@@ -813,6 +832,14 @@ subroutine set_up_output_files(fno1,fno2,fno3,fno4,fno5,fno6)
          'year','doy','hour','cID','sp','layer', &
          'density','dbh','height','Acrown',      &
          'bl','LAI','GPP', 'NPP', 'Transp',      &
+         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!mazen
+         'Resp_r','Grow_Resp_r','Growth_r',      &
+         'Resp_s','Grow_Resp_s','Growth_s',      &
+#ifdef Phloem_test
+         'bph',                                  &
+         'nsc',                                  &
+#endif
+
 #ifdef Hydro_test
          'Psi_L','Psi_W','W_leaf','W_stem'
 #else
@@ -847,7 +874,7 @@ subroutine set_up_output_files(fno1,fno2,fno3,fno4,fno5,fno6)
          'NSN','seedN','leafN','rootN','SW-N','HW-N',       &
          'fineL', 'strucL', 'McrbC', 'fastSOC', 'slowSOC',  &
          'fineN', 'strucN', 'McrbN', 'fastSON', 'slowSON',  &
-         'mineralN', 'N_uptk','Kappa'
+         'mineralN', 'N_uptk','Kappa','PhloemC'
     endif
 
     open(fno5,file=trim(YearlyCohort),ACTION='write', IOSTAT=istat3)

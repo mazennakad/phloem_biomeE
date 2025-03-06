@@ -114,11 +114,12 @@ subroutine BiomeE_initialization()
   land%nTiles = 0
   do i =1, N_VegTile
     allocate(vegn)
+    vegn%Tc_pheno = forcingData(1)%Tair     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!mazen
     call initialize_vegn_tile(vegn)
     ! Sort and relayer cohorts
     call relayer_cohorts(vegn)
     call Zero_diagnostics(vegn)
-    vegn%Tc_pheno = forcingData(1)%Tair
+    !vegn%Tc_pheno = forcingData(1)%Tair
     vegn%tileID = i
     land%nTiles = land%nTiles + 1
     if(i==1)then
