@@ -83,12 +83,11 @@ program phloem_biomee
     po(n) = cc%p(n)
 
     ! xylem water potential
-    call linspace(data%Psi_L(j) - rho*g_const*L, data%Psi_W(j), n, Psi)
+    call linspace(data%Psi_L(j), data%Psi_W(j), n, Psi)
     Psi = Psi / psi0
 
-    call iterate(n, dz, Mu, G, X0, Pe, Sl, Ss, Sr, es, Psi, co, uo, vo, po, nuo, cw, &
+    call iterate(n, dz, Mu, X0, Pe, Sl, Ss, Sr, es, Psi, co, uo, vo, po, nuo, cw, &
      c, u, v, p, nu)
-
     ! Deallocate arrays
     deallocate(c, u, p, v, nu, co, uo, vo, po, nuo,Psi)
 
@@ -104,12 +103,12 @@ subroutine linspace(start, end_val, n, array)
     end do
 end subroutine linspace
 
-subroutine iterate(n, dz, Mu, G, X0, Pe, Sl, Ss, Sr, es, Psi, co, uo, vo, po, nuo, &
+subroutine iterate(n, dz, Mu, X0, Pe, Sl, Ss, Sr, es, Psi, co, uo, vo, po, nuo, &
                   cw, ck, uk, vk, pk, nuk)
 
     ! Input parameters
     integer, intent(in) :: n
-    real(8), intent(in) :: dz, Mu, G, X0, Pe, Sl, Ss, Sr, es, Psi, cw
+    real(8), intent(in) :: dz, Mu, X0, Pe, Sl, Ss, Sr, es, Psi, cw
     real(8), dimension(n), intent(in) :: co, uo, vo, po, nuo
     real(8), dimension(n-1), intent(in) :: uo
 
@@ -145,7 +144,7 @@ subroutine iterate(n, dz, Mu, G, X0, Pe, Sl, Ss, Sr, es, Psi, co, uo, vo, po, nu
         end if
 
         ! Call newton subroutine
-        call newton(n, dz, Mu, G, X0, Pe, Sl, Ss, Sr, es, Psi, &
+        call newton(n, dz, Mu, X0, Pe, Sl, Ss, Sr, es, Psi, &
                    co, uo, vo, po, nuo, cw, vector_S, Sk)
 
         ! Check convergence
@@ -194,14 +193,15 @@ subroutine check_convergence(vector_S, Sk, size, check_C)
 
 end subroutine check_convergence
 
-subroutine newton(n, dz, Mu, G, X0, Pe, Sl, Ss, Sr, es, Psi, &
+
+subroutine newton(n, dz, Mu, X0, Pe, Sl, Ss, Sr, es, Psi, &
     c, u, v, p, nu, cw, vector_S, Sk)
 
 
     ! Input parameters
     integer, intent(in) :: n
     real, intent(in) :: dz
-    real, intent(in) :: Mu, G, X0, Pe, Sl, Ss, Sr, es, cw
+    real, intent(in) :: Mu, X0, Pe, Sl, Ss, Sr, es, cw
     real, intent(in) :: c(n), u(n-1), v(n), p(n), nu(n), Psi(n)
 
     ! Output parameters
@@ -218,13 +218,13 @@ subroutine newton(n, dz, Mu, G, X0, Pe, Sl, Ss, Sr, es, Psi, &
     integer :: i
 
     ! Call BuildP subroutine
-    call BuildP(n, dz, Mu, G, X0, Psi, c, p, nu, PP, PU, PV, PC, PN, F1)
+    call BuildP(n, dz, Mu, X0, Psi, c, p, nu, PP, PU, PV, PC, PN, F1)
 
     ! Call BuildU subroutine
     call BuildU(n, dz, u, p, nu, UP, UU, UV, UC, UN, F2)
 
     ! Call BuildV subroutine
-    call BuildV(n, dz, v, p, nu, c, G, X0, Psi, VP, VU, VV, VC, VN, F3)
+    call BuildV(n, dz, v, p, nu, VP, VU, VV, VC, VN, F3)
 
     ! Call BuildC subroutine
     call BuildC(n, dz, Pe, Sl, Ss, Sr, es, c, u, v, &
@@ -382,12 +382,11 @@ subroutine linear_solver(A, b, x)
 end subroutine linear_solver
 
 
-
-subroutine BuildP(n, dz, Mu, G, X0, Psi, c, p, nu, PP, PU, PV, PC, PN, F1)
+subroutine BuildP(n, dz, Mu, X0, Psi, c, p, nu, PP, PU, PV, PC, PN, F1)
 
     ! Input arguments
     integer, intent(in) :: n
-    real(8), intent(in) :: dz, Mu, G, X0
+    real(8), intent(in) :: dz, Mu, X0
     real(8), dimension(n), intent(in) :: Psi, c, p, nu
 
     ! Output arguments
@@ -428,10 +427,10 @@ subroutine BuildP(n, dz, Mu, G, X0, Psi, c, p, nu, PP, PU, PV, PC, PN, F1)
       lowN(i-1) = -uppN(i)
       F1(i) = (nu(i+1) - nu(i-1)) * (p(i+1) - p(i-1)) / (6.0d0 * dz**2) + &
               nu(i) * (p(i+1) - 2.0d0 * p(i) + p(i-1)) / (3.0d0 * dz**2) - &
-              Mu * p(i) + c(i) + X0 * Psi(i) - G * dz * (i - 0.5d0)
+              Mu * p(i) + c(i) + X0 * Psi(i)
     end do
-    F1(1) = -Mu * p(1) + c(1) + X0 * Psi(1) - G * dz * 0.5d0
-    F1(n) = -Mu * p(n) + c(n) + X0 * Psi(n) - G * dz * (n - 0.5d0)
+    F1(1) = -Mu * p(1) + c(1) + X0 * Psi(1)
+    F1(n) = -Mu * p(n) + c(n) + X0 * Psi(n)
 
 
     do i = 1, n
@@ -450,6 +449,7 @@ subroutine BuildP(n, dz, Mu, G, X0, Psi, c, p, nu, PP, PU, PV, PC, PN, F1)
 
 
 end subroutine BuildP
+
 
 subroutine BuildU(n, dz, u, p, nu, UP, UU, UV, UC, UN, F2)
 
@@ -487,6 +487,7 @@ subroutine BuildU(n, dz, u, p, nu, UP, UU, UV, UC, UN, F2)
     UN(n-1, n) = (p(n) - p(n-1)) / (6.0d0 * dz)
 
 end subroutine BuildU
+
 
 subroutine BuildV(n, dz, v, p, nu, VP, VU, VV, VC, VN, F3)
 
@@ -547,8 +548,9 @@ subroutine BuildV(n, dz, v, p, nu, VP, VU, VV, VC, VN, F3)
 end subroutine BuildV
 
 
+
 subroutine BuildC(n, dz, Pe, Sl, Ss, Sr, es, c, u, v, CP, CU, CV, CC, CN, F4)
-    implicit none
+
     integer, intent(in) :: n
     real, intent(in) :: dz, Pe, Sl, Ss, Sr, es
     real, intent(in) :: c(n), u(n-1), v(n)
@@ -719,7 +721,7 @@ subroutine initial(n, dz, Mu, G, X0, Pe, Sl, Ss, Sr, es, Psi, cw, c, u, nu, v, p
     real(8), dimension(n-1) :: uo
 
     call guess(n, dz, G, Mu, X0, Psi, cw, co, uo, vo, po, nuo)
-    call iterate(n, dz, Mu, G, X0, Pe, Sl, Ss, Sr, es, Psi, &
+    call iterate(n, dz, Mu, X0, Pe, Sl, Ss, Sr, es, Psi, &
     co, uo, vo, po, nuo, cw, c, u, v, p, nu)
 
 
@@ -746,14 +748,14 @@ subroutine guess(n, dz, G, Mu, X0, Psi, cw, ci, ui, vi, pi, nui)
     nuo = 1.0d0
 
     ! Calculate velocity components
-    call VelocityS(co, nuo, Mu, Psi, X0, G, dz, n, uo, vo, po)
+    call VelocityS(co, nuo, Mu, Psi, X0, dz, n, uo, vo, po)
 
 end subroutine guess
 
-subroutine VelocityS(co, nuo, Mu, Psi, X0, G, dz, n, uo, vo, po)
+subroutine VelocityS(co, nuo, Mu, Psi, X0, dz, n, uo, vo, po)
     ! Arguments
     integer, intent(in) :: n
-    real(8), intent(in) :: co(n), nuo(n), Mu, Psi(n), X0, G, dz
+    real(8), intent(in) :: co(n), nuo(n), Mu, Psi(n), X0, dz
     real(8), intent(out) :: uo(n-1), vo(n), vo(n)
 
     ! Local variables
@@ -768,13 +770,13 @@ subroutine VelocityS(co, nuo, Mu, Psi, X0, G, dz, n, uo, vo, po)
 
     diagP(1) = -Mu
     diagP(n) = -Mu
-    eqP(1) = -co(1) - X0*Psi(1) + G*dz*0.5d0
-    eqP(n) = -co(n) - X0*Psi(n) + G*dz*(dble(n) - 0.5d0)
+    eqP(1) = -co(1) - X0*Psi(1)
+    eqP(n) = -co(n) - X0*Psi(n)
     do i = 2, n-1
         diagP(i) = -nuo(i)*2.0d0/(3.0d0*(dz**2)) - Mu
         uppP(i) = (nuo(i+1) - nuo(i-1))/(12.0d0*(dz**2)) + nuo(i)/(3.0d0*(dz**2))
         lowP(i) = -(nuo(i+1) - nuo(i-1))/(12.0d0*(dz**2)) + nuo(i)/(3.0d0*(dz**2))
-        eqP(i) = -co(i) - X0*Psi(i) + G*dz*(dble(i) - 0.5d0)
+        eqP(i) = -co(i) - X0*Psi(i)
     end do
 
 
