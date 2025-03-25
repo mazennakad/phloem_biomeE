@@ -1738,30 +1738,22 @@ subroutine vegn_Phloem_transport(forcing,vegn)
   real :: Lmax ! any variables here
   real :: Tair
   integer :: i, j, k
-  integer, parameter :: n = 100                      ! number of node cells
-  real(8), parameter :: dz = 1/n                     ! grid size
-  real(8), parameter :: T     = 293.15               ! phloem temperature K (could be defined based on leaf T)
-  !!!!!! I think these parameters should be included in the species type
-  real(8), parameter :: D = 4.0e-10                  ! Sucrose Diffusivity in water m2/s
-  real(8), parameter :: nu0  = 1.5e-3                 ! sap viscosity Pa s
-  real(8), parameter :: ks   = 5e-14                  ! xylem-phloem membrane permeability m/(Pa s)
+  integer, parameter :: n = ng                      ! number of node cells
 
   ! Declare variables
-  real(8), allocatable :: c(:)    ! Sucrose concentration at the center of the cell
-  real(8), allocatable :: u(:)    ! Longitudinal velocity at the face of the cell
-  real(8), allocatable :: p(:)    ! Dynamic fluid pressure at the center of the cell
-  real(8), allocatable :: v(:)    ! Transverse velocity at the center of the cell
-  real(8), allocatable :: nu(:)    ! Dynamic viscosity at the center of the cell
-  real(8), allocatable :: Psi(:)    ! Xylem water potential at the center of the cell
-  real(8) :: dx, L  ! diameter at breast height and tree height
-  real(8), allocatable :: Resp_s, GResp_s, Growth_s  ! stem demand sucrose g/(ms)
-  real(8), allocatable :: Resp_r, GResp_r, Growth_r  ! root demand sucrose g/(ms)
-  real(8), allocatable :: Psi_L, psi0             ! leaf water potential and its scaling
-  real(8) :: Sstem, Sstemr, Sstemg, Sroot, Sleaf
+  real, allocatable :: co(:)    ! Sucrose concentration at the center of the cell
+  real, allocatable :: uo(:)    ! Longitudinal velocity at the face of the cell
+  real, allocatable :: po(:)    ! Dynamic fluid pressure at the center of the cell
+  real, allocatable :: vo(:)    ! Transverse velocity at the center of the cell
+  real, allocatable :: nuo(:)    ! Dynamic viscosity at the center of the cell
+  real, allocatable :: Psi(:)    ! Xylem water potential at the center of the cell
+  real :: dx, L, a  ! diameter at breast height and tree height
+  real, allocatable :: Resp_s, GResp_s, Growth_s  ! stem demand sucrose g/(ms)
+  real, allocatable :: Resp_r, GResp_r, Growth_r  ! root demand sucrose g/(ms)
+  real, allocatable :: Psi_L, psi0             ! leaf water potential and its scaling
+  real :: Sstem, Sstemr, Sstemg, Sroot, Sleaf
   ! scaling parameters
-  real(8) :: c0, cw, os, es, v0, u0, p0, t0, G, X0, Mu, Pe, Ss, Sl, Sr
-
-
+  real :: c0, cw, os, es, v0, u0, p0, t0, G, X0, Mu, Pe, Ss, Sl, Sr
 
   ! ------------------
   tair = forcing%Tair -273.16   ! degC
@@ -1772,7 +1764,7 @@ subroutine vegn_Phloem_transport(forcing,vegn)
 
        L = cc%height
        dx = cc%dbh
-       a  = sp%p_thicnkness
+       a  = sp%p_thickness
        Resp_s =   cc%DR_stem*Mw_sucr*(1.0e3)/(12*mol_C)
        Resp_r =   cc%DR_root*Mw_sucr*(1.0e3)/(12*mol_C)
        GResp_s =   cc%DGR_stem*Mw_sucr*(1.0e3)/(12*mol_C)
@@ -1786,9 +1778,9 @@ subroutine vegn_Phloem_transport(forcing,vegn)
        psi0    = - Psi_L
 
        ! Non-dimensional and scaling quantities
-       c0 = psi0 * Mw_sucr*(1.0e3) * PI * dx / (Rgas * T)
+       c0 = psi0 * Mw_sucr*(1.0e3) * PI * dx / (Rgas * Tphloem)
        cw = c0 / (Mw_sucr*(1.0e3) * PI * dx)
-       os = Rgas * T * c0 / (Mw_sucr*(1.0e3) * PI * dx)
+       os = Rgas * Tphloem * c0 / (Mw_sucr*(1.0e3) * PI * dx)
        es = a / L
        v0 = ks * os
        u0 = v0 / es
@@ -1803,28 +1795,30 @@ subroutine vegn_Phloem_transport(forcing,vegn)
        Sr = Sroot / (u0 * c0)
 
        ! Allocate variables to be solved
-       allocate(c(n),u(n-1),p(n),v(n),nu(n),Psi(n))
+       !allocate(c(n),u(n-1),p(n),v(n),nu(n),Psi(n))
        ! Initial condition variables
-       allocate(co(n), uo(n-1), vo(n), po(n),nuo(n))
+       allocate(co(n), uo(n-1), vo(n), po(n),nuo(n), Psi(n))
 
        do j=1,n-1
-         co(j) = cc%c(j)   !!! we need to include these variables into the cohort type
-         uo(j) = cc%u(j)
-         vo(j) = cc%v(j)
-         po(j) = cc%p(j)
+         co(j) = cc%suc_con(j)   !!! we need to include these variables into the cohort type
+         uo(j) = cc%ax_velo(j)
+         vo(j) = cc%trans_velo(j)
+         po(j) = cc%phloem_p(j)
+         nuo(j) = cc%dy_visco(j)
        end do
-       co(n) = cc%c(n)
-       vo(n) = cc%v(n)
-       po(n) = cc%p(n)
+       co(n) = cc%suc_con(n)
+       vo(n) = cc%trans_velo(n)
+       po(n) = cc%phloem_p(n)
+       nuo(n) = cc%dy_visco(n)
 
        ! xylem water potential
        call linspace(cc%psi_leaf*(1.0e6), cc%psi_stem*(1.0e6), n, Psi) ! xylem water potential, linear Pa
        Psi = Psi / psi0
 
        call iterate(n, dz, Mu, X0, Pe, Sl, Ss, Sr, es, Psi, co, uo, vo, po, nuo, cw, &
-        cc%c, cc%u, cc%v, cc%p, cc%nu)
+        cc%suc_con, cc%ax_velo, cc%trans_velo, cc%phloem_p, cc%dy_visco)
        ! Deallocate arrays
-       deallocate(c, u, p, v, nu, co, uo, vo, po, nuo,Psi)
+       deallocate(co, uo, vo, po, nuo,Psi)
 
      end associate
   enddo
@@ -1833,8 +1827,8 @@ end subroutine vegn_Phloem_transport
 
 subroutine linspace(start, end_val, n, array)
     integer, intent(in) :: n
-    real(8), intent(in) :: start, end_val
-    real(8), intent(out) :: array(n)
+    real, intent(in) :: start, end_val
+    real, intent(out) :: array(n)
     integer :: i
     do i = 1, n
         array(i) = start + (end_val - start) * (i - 1) / real(n - 1, 8)
@@ -1846,18 +1840,19 @@ subroutine iterate(n, dz, Mu, X0, Pe, Sl, Ss, Sr, es, Psi, co, uo, vo, po, nuo, 
 
     ! Input parameters
     integer, intent(in) :: n
-    real(8), intent(in) :: dz, Mu, X0, Pe, Sl, Ss, Sr, es, Psi, cw
-    real(8), dimension(n), intent(in) :: co, uo, vo, po, nuo
-    real(8), dimension(n-1), intent(in) :: uo
+    real, intent(in) :: dz, Mu, X0, Pe, Sl, Ss, Sr, es, cw
+    real, dimension(n), intent(inout) :: co, vo, po, nuo
+    real, dimension(n-1), intent(inout) :: uo
+    real, dimension(n), intent(in) :: Psi
 
     ! Output parameters
-    real(8), dimension(n), intent(out) :: ck, uk, vk, pk, nuk
-    real(8), dimension(n-1), intent(out) :: uk
+    real, dimension(n), intent(out) :: ck, vk, pk, nuk
+    real, dimension(n-1), intent(out) :: uk
 
 
     ! Local variables
     logical :: check_C
-    real(8), allocatable :: vector_S(:), Sk(:)
+    real, allocatable :: vector_S(:), Sk(:)
     integer :: vector_length
     integer :: iteration
 
@@ -1913,11 +1908,11 @@ subroutine check_convergence(vector_S, Sk, size, check_C)
     implicit none
     ! Input parameters
     integer, intent(in) :: size
-    real(8), intent(in), dimension(size) :: vector_S, Sk
+    real, intent(in), dimension(size) :: vector_S, Sk
     ! Output parameter
     logical, intent(out) :: check_C
     ! Local variable
-    real(8) :: rms
+    real :: rms
 
     ! Compute RMS error
     rms = sqrt(sum((vector_S - Sk)**2) / dble(size))
@@ -1933,14 +1928,14 @@ end subroutine check_convergence
 
 
 subroutine newton(n, dz, Mu, X0, Pe, Sl, Ss, Sr, es, Psi, &
-    c, u, v, p, nu, cw, vector_S, Sk)
+    c, u, v, p, nuDV, cw, vector_S, Sk)
 
 
     ! Input parameters
     integer, intent(in) :: n
     real, intent(in) :: dz
     real, intent(in) :: Mu, X0, Pe, Sl, Ss, Sr, es, cw
-    real, intent(in) :: c(n), u(n-1), v(n), p(n), nu(n), Psi(n)
+    real, intent(in) :: c(n), u(n-1), v(n), p(n), nuDV(n), Psi(n)
 
     ! Output parameters
     real, allocatable, intent(out) :: vector_S(:), Sk(:)
@@ -1952,30 +1947,30 @@ subroutine newton(n, dz, Mu, X0, Pe, Sl, Ss, Sr, es, Psi, &
     real, allocatable :: CP(:,:), CU(:,:), CV(:,:), CC(:,:), CN(:,:), F4(:)
     real, allocatable :: NP(:,:), NU(:,:), NV(:,:), NC(:,:), NN(:,:), F5(:)
     real, allocatable :: m(:,:), F(:), sol(:), Fk(:)
-    real(8) :: resk
+    real :: resk
     integer :: i
 
     ! Call BuildP subroutine
-    call BuildP(n, dz, Mu, X0, Psi, c, p, nu, PP, PU, PV, PC, PN, F1)
+    call BuildP(n, dz, Mu, X0, Psi, c, p, nuDV, PP, PU, PV, PC, PN, F1)
 
     ! Call BuildU subroutine
-    call BuildU(n, dz, u, p, nu, UP, UU, UV, UC, UN, F2)
+    call BuildU(n, dz, u, p, nuDV, UP, UU, UV, UC, UN, F2)
 
     ! Call BuildV subroutine
-    call BuildV(n, dz, v, p, nu, VP, VU, VV, VC, VN, F3)
+    call BuildV(n, dz, v, p, nuDV, VP, VU, VV, VC, VN, F3)
 
     ! Call BuildC subroutine
     call BuildC(n, dz, Pe, Sl, Ss, Sr, es, c, u, v, &
         CP, CU, CV, CC, CN, F4)
 
-    allocate(NP(n), NU(n, n-1),NV(n),NC(n),NN(n),F5(n))
+    allocate(NP(n,n), NU(n, n-1),NV(n,n),NC(n,n),NN(n,n),F5(n))
     NP = 0.0d0
     NU = 0.0d0
     NV = 0.0d0
     NC = 0.0d0
     NN = 0.0d0
     do i = 1, n
-        NN(i) = 1.0
+        NN(i,i) = 1.0
     end do
     F5 = 0.0d0
 
@@ -2039,7 +2034,7 @@ subroutine newton(n, dz, Mu, X0, Pe, Sl, Ss, Sr, es, Psi, &
     vector_S(n+1:2*n-1)    = u
     vector_S(2*n:3*n-1)    = v
     vector_S(3*n:4*n-1)    = c
-    vector_S(4*n+1:5*n)    = nu
+    vector_S(4*n+1:5*n)    = nuDV
 
     ! Compute Sk = vector_S + sol
     allocate(Sk(5*n))
@@ -2124,17 +2119,17 @@ subroutine BuildP(n, dz, Mu, X0, Psi, c, p, nu, PP, PU, PV, PC, PN, F1)
 
     ! Input arguments
     integer, intent(in) :: n
-    real(8), intent(in) :: dz, Mu, X0
-    real(8), dimension(n), intent(in) :: Psi, c, p, nu
+    real, intent(in) :: dz, Mu, X0
+    real, dimension(n), intent(in) :: Psi, c, p, nu
 
     ! Output arguments
-    real(8), dimension(n, n), intent(out) :: PP, PV, PC, PN
-    real(8), dimension(n, n-1), intent(out) :: PU
-    real(8), dimension(n), intent(out) :: F1
+    real, dimension(n, n), intent(out) :: PP, PV, PC, PN
+    real, dimension(n, n-1), intent(out) :: PU
+    real, dimension(n), intent(out) :: F1
 
     ! Local variables
-    real(8), dimension(n) :: diagP, diagN
-    real(8), dimension(n-1) :: uppP, lowP, uppN, lowN
+    real, dimension(n) :: diagP, diagN
+    real, dimension(n-1) :: uppP, lowP, uppN, lowN
     integer :: i
 
     ! Initialize matrices to zero
@@ -2193,14 +2188,14 @@ subroutine BuildU(n, dz, u, p, nu, UP, UU, UV, UC, UN, F2)
 
     ! Input arguments
     integer, intent(in) :: n
-    real(8), intent(in) :: dz
-    real(8), dimension(n-1), intent(in) :: u
-    real(8), dimension(n), intent(in) :: p, nu
+    real, intent(in) :: dz
+    real, dimension(n-1), intent(in) :: u
+    real, dimension(n), intent(in) :: p, nu
 
     ! Output arguments
-    real(8), dimension(n-1, n), intent(out) :: UP, UV, UC, UN
-    real(8), dimension(n-1, n-1), intent(out) :: UU
-    real(8), dimension(n-1), intent(out) :: F2
+    real, dimension(n-1, n), intent(out) :: UP, UV, UC, UN
+    real, dimension(n-1, n-1), intent(out) :: UU
+    real, dimension(n-1), intent(out) :: F2
 
     ! Local variables
     integer :: i
@@ -2231,17 +2226,17 @@ subroutine BuildV(n, dz, v, p, nu, VP, VU, VV, VC, VN, F3)
 
     ! Input arguments
     integer, intent(in) :: n
-    real(8), intent(in) :: dz
-    real(8), dimension(n), intent(in) :: v, p, nu,
+    real, intent(in) :: dz
+    real, dimension(n), intent(in) :: v, p, nu
 
     ! Output arguments
-    real(8), dimension(n, n), intent(out) :: VP, VV, VC, VN
-    real(8), dimension(n, n-1), intent(out) :: VU
-    real(8), dimension(n), intent(out) :: F3
+    real, dimension(n, n), intent(out) :: VP, VV, VC, VN
+    real, dimension(n, n-1), intent(out) :: VU
+    real, dimension(n), intent(out) :: F3
 
     ! Local variables
-    real(8), dimension(n) :: diagP, diagN
-    real(8), dimension(n-1) :: uppP, lowP, uppN, lowN
+    real, dimension(n) :: diagP, diagN
+    real, dimension(n-1) :: uppP, lowP, uppN, lowN
     integer :: i
 
 
@@ -2334,7 +2329,7 @@ subroutine BuildC(n, dz, Pe, Sl, Ss, Sr, es, c, u, v, CP, CU, CV, CC, CN, F4)
         end if
     end do
     CU(n, n-1) = - ( Pe - (7.0/45.0)*(Pe**2)*v(n-1) )*c(n-1)/dz &
-                 + (4.0/10.5.0)*( (Pe/dz)**2 )*u(n-1)*( c(n) - c(n-1) ) &
+                 + (4.0/105.0)*( (Pe/dz)**2 )*u(n-1)*( c(n) - c(n-1) ) &
                  + 2.0*(7.0/120.0)*(Ss/es)*(Pe**2)*dz*(n-1)/dz
 
     CV(n, n-1) = (7.0/45.0)*(Pe**2) * u(n-1) * c(n-1) / dz
@@ -2435,135 +2430,6 @@ end subroutine BuildC
 !                   bb(4) * (cw**3) * (c**3 - 1.0d0) - bb(5) * (cw**4) * (c**4 - 1.0d0) )
 !
 !end subroutine BuildN
-
-
-
-
-
-!!!!!!!!!!!!!!! this needs to be called in initialize BiomeE for cohort initialization
-subroutine initial(n, dz, Mu, G, X0, Pe, Sl, Ss, Sr, es, Psi, cw, c, u, nu, v, p)
-
-    ! Input parameters
-    integer, intent(in) :: n, m, nts
-    real(8), intent(in) :: dz, Mu, G, X0, Pe, Sl, Ss, Sr, es, Psi(n), cw
-
-    ! Output arrays
-    real(8), dimension(n), intent(out) :: c, nu, v, p
-    real(8), dimension(n-1), intent(out) :: u
-
-    ! Local variables
-    real(8), dimension(n) :: co, vo, po, nuo
-    real(8), dimension(n-1) :: uo
-
-    call guess(n, dz, G, Mu, X0, Psi, cw, co, uo, vo, po, nuo)
-    call iterate(n, dz, Mu, X0, Pe, Sl, Ss, Sr, es, Psi, &
-    co, uo, vo, po, nuo, cw, c, u, v, p, nu)
-
-
-end subroutine initial
-
-subroutine guess(n, dz, G, Mu, X0, Psi, cw, ci, ui, vi, pi, nui)
-
-    ! Input parameters
-    integer, intent(in) :: n
-    real(8), intent(in) :: dz, G, Mu, X0, Psi(n), cw
-
-    ! Output arrays
-    real(8), dimension(n), intent(out) :: co, vo, po, nuo
-    real(8), dimension(n-1), intent(out) :: uo
-
-
-    integer :: i
-
-    ! Calculate concentration
-    do i = 1, n
-        co(i) = 3.0d0 * (G * dz * (dble(i) - 0.5d0) - X0 * Psi(i))
-    end do
-
-    nuo = 1.0d0
-
-    ! Calculate velocity components
-    call VelocityS(co, nuo, Mu, Psi, X0, dz, n, uo, vo, po)
-
-end subroutine guess
-
-subroutine VelocityS(co, nuo, Mu, Psi, X0, dz, n, uo, vo, po)
-    ! Arguments
-    integer, intent(in) :: n
-    real(8), intent(in) :: co(n), nuo(n), Mu, Psi(n), X0, dz
-    real(8), intent(out) :: uo(n-1), vo(n), vo(n)
-
-    ! Local variables
-    real(8) :: diagP(n), uppP(n), lowP(n), eqP(n)
-    integer :: i
-
-    ! Initialize arrays
-    diagP = 0.0d0
-    uppP = 0.0d0
-    lowP = 0.0d0
-    eqP = 0.0d0
-
-    diagP(1) = -Mu
-    diagP(n) = -Mu
-    eqP(1) = -co(1) - X0*Psi(1)
-    eqP(n) = -co(n) - X0*Psi(n)
-    do i = 2, n-1
-        diagP(i) = -nuo(i)*2.0d0/(3.0d0*(dz**2)) - Mu
-        uppP(i) = (nuo(i+1) - nuo(i-1))/(12.0d0*(dz**2)) + nuo(i)/(3.0d0*(dz**2))
-        lowP(i) = -(nuo(i+1) - nuo(i-1))/(12.0d0*(dz**2)) + nuo(i)/(3.0d0*(dz**2))
-        eqP(i) = -co(i) - X0*Psi(i)
-    end do
-
-
-    ! Solve tridiagonal system
-    call Thomas(lowP, diagP, uppP, eqP, po, n)
-
-    ! Calculate axial velocity
-    do i = 1, n-1
-        uo(i) = (nuo(i+1) + nuo(i))*(po(i) - po(i+1))/(6.0d0*dz)
-    end do
-
-    ! Calculate radial velocity
-    vo = 0.0d0
-    do i = 2, n-1
-        vo(i) = (3.0d0/8.0d0)*dz*(uo(i) - uo(i-1))
-    end do
-
-end subroutine VelocityS
-
-subroutine thomas(aa, bb, cc, dd, q, n)
-    ! Arguments
-    integer, intent(in) :: n
-    real(8), intent(in) :: aa(n), bb(n), cc(n), dd(n)
-    real(8), intent(out) :: q(n)
-
-    ! Local variables
-    real(8) :: bet(n), gam(n)
-    integer :: i
-
-    ! Initialize first elements
-    bet(1) = bb(1)
-    gam(1) = dd(1)/bb(1)
-
-    ! Forward elimination
-    do i = 2, n
-        bet(i) = bb(i) - (aa(i)*cc(i-1)/bet(i-1))
-        gam(i) = (dd(i) - aa(i)*gam(i-1))/bet(i)
-    end do
-
-    ! Back substitution
-    q(n) = gam(n)
-
-    do i = n-1, 1, -1
-        q(i) = gam(i) - (cc(i)*q(i+1)/bet(i))
-    end do
-
-end subroutine thomas
-
-
-
-
-
 
 
 
@@ -3111,6 +2977,7 @@ subroutine initialize_cohorts(vegn)
    cc => null()
    do i=1,init_n_cohorts
       cp => vegn%cohorts(i)
+      associate ( sp => spdata(cp%species))
       cp%status  = LEAF_OFF ! ON=1, OFF=0 ! ON
       cp%layer   = 1
       cp%age     = 0
@@ -3123,6 +2990,7 @@ subroutine initialize_cohorts(vegn)
       cp%bph     = init_cohort_phloem(i)           !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!mazen
       btotal     = cp%bsw + cp%bHW  ! kgC /tree
       call initialize_cohort_from_biomass(cp,btotal,maxval(vegn%psi_soil(:)),vegn%tc_pheno)
+      end associate
    enddo
 end subroutine initialize_cohorts
 
@@ -3196,10 +3064,14 @@ subroutine initialize_cohort_from_biomass(cc,btot,psi_s0,temp)   !!!!!!!!!!!!!!!
   real,intent(in)    :: btot ! total biomass per individual, kg C
   real,intent(in)    :: psi_s0 ! Initial stem water potential
   real,intent(in)    :: temp   ! temperature to calculate initial sugar biomass
+  real, allocatable :: Psi(:)    ! Xylem water potential at the center of the cell
+
 
   !---- local vars ------------
   integer :: j
+  real :: c0, cw, os, es, v0, u0, p0, t0, G, X0, Mu, Pe
 
+  allocate(Psi(ng))
 
   associate(sp=>spdata(cc%species))
     call BM2Architecture(cc,btot)
@@ -3245,10 +3117,140 @@ subroutine initialize_cohort_from_biomass(cc,btot,psi_s0,temp)   !!!!!!!!!!!!!!!
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!mazen  should I do the same everywhere (use Tc_pheno)?
     cc%bph = - ( 1000000*(cc%psi_leaf + cc%psi_stem)/(2*Rgas*(temp + 273.16)) )*(Mw_sucr*cc%height*sp%p_thickness*(PI*cc%DBH)**2) ! Kg sucrose
     cc%bph = cc%bph*(12*mol_C/Mw_sucr)
+
+    ! Non-dimensional and scaling quantities
+    c0 = - cc%psi_leaf*(1.0e6)* Mw_sucr*(1.0e3) * PI * cc%dbh / (Rgas * Tphloem)
+    cw = c0 / (Mw_sucr*(1.0e3) * PI * cc%dbh)
+    os = Rgas * Tphloem * c0 / (Mw_sucr*(1.0e3) * PI * cc%dbh)
+    es = sp%p_thickness / cc%height
+    v0 = ks * os
+    u0 = v0 / es
+    p0 = cc%height * nu0 * u0 / (sp%p_thickness**2)
+    t0 = (sp%p_thickness**2) / D
+    G = rho_H2O * 9.8 * cc%height / os
+    X0 = - cc%psi_leaf*(1.0e6) / os
+    Mu = ks * nu0 * (cc%height**2) / (sp%p_thickness**3)
+    Pe = sp%p_thickness * v0 / D
+    ! xylem water potential
+    call linspace(cc%psi_leaf*(1.0e6), cc%psi_stem*(1.0e6), ng, Psi) ! xylem water potential, linear Pa
+    Psi = - Psi / cc%psi_leaf*(1.0e6)
+    call initial(ng, Mu, G, X0, Pe, es, Psi, cw, cc%suc_con, cc%ax_velo, cc%dy_visco, cc%trans_velo, cc%phloem_p)
     !cc%bph = - (12*mol_C/Mw_sucr)*( 100000*(cc%psi_leaf + cc%psi_stem)/( 2*Rgas*(temp + 273.16) ) )*( Mw_sucr*(cc%height)*(sp%p_thickness)*((PI*cc%DBH)**2) ) ! kgC
     !write(*,*)'sugar',cc%bph
   end associate
 end subroutine initialize_cohort_from_biomass
+
+subroutine initial(n, Mu, G, X0, Pe, es, Psi, cw, co, uo, nuo, vo, po)
+
+    ! Input parameters
+    integer, intent(in) :: n
+    real, intent(in) :: Mu, G, X0, Pe, es, Psi(n), cw
+
+    ! Output arrays
+    real, dimension(n), intent(out) :: co, nuo, vo, po
+    real, dimension(n-1), intent(out) :: uo
+
+    call guess(n, G, Mu, X0, Psi, cw, co, uo, vo, po, nuo)
+    !call iterate(n, dz, Mu, X0, Pe, Sl, Ss, Sr, es, Psi, &
+    !co, uo, vo, po, nuo, cw, c, u, v, p, nu)
+end subroutine initial
+
+subroutine guess(n, G, Mu, X0, Psi, cw, co, uo, vo, po, nuo)
+
+    ! Input parameters
+    integer, intent(in) :: n
+    real, intent(in) :: G, Mu, X0, Psi(n), cw
+
+    ! Output arrays
+    real, dimension(n), intent(out) :: co, vo, po, nuo
+    real, dimension(n-1), intent(out) :: uo
+
+
+    integer :: i
+
+    ! Calculate concentration
+    do i = 1, n
+        co(i) = 3.0d0 * (G * dz * (dble(i) - 0.5d0) - X0 * Psi(i))
+    end do
+
+    nuo = 1.0d0
+
+    ! Calculate velocity components
+    call VelocityS(co, nuo, Mu, Psi, X0, n, uo, vo, po)
+
+end subroutine guess
+
+subroutine VelocityS(co, nuo, Mu, Psi, X0, n, uo, vo, po)
+    ! Arguments
+    integer, intent(in) :: n
+    real, intent(in) :: co(n), nuo(n), Mu, Psi(n), X0
+    real, intent(out) :: uo(n-1), vo(n), po(n)
+
+    ! Local variables
+    real :: diagP(n), uppP(n), lowP(n), eqP(n)
+    integer :: i
+
+    ! Initialize arrays
+    diagP = 0.0d0
+    uppP = 0.0d0
+    lowP = 0.0d0
+    eqP = 0.0d0
+
+    diagP(1) = -Mu
+    diagP(n) = -Mu
+    eqP(1) = -co(1) - X0*Psi(1)
+    eqP(n) = -co(n) - X0*Psi(n)
+    do i = 2, n-1
+        diagP(i) = -nuo(i)*2.0d0/(3.0d0*(dz**2)) - Mu
+        uppP(i) = (nuo(i+1) - nuo(i-1))/(12.0d0*(dz**2)) + nuo(i)/(3.0d0*(dz**2))
+        lowP(i) = -(nuo(i+1) - nuo(i-1))/(12.0d0*(dz**2)) + nuo(i)/(3.0d0*(dz**2))
+        eqP(i) = -co(i) - X0*Psi(i)
+    end do
+
+    ! Solve tridiagonal system
+    call Thomas(lowP, diagP, uppP, eqP, po, n)
+
+    ! Calculate axial velocity
+    do i = 1, n-1
+        uo(i) = (nuo(i+1) + nuo(i))*(po(i) - po(i+1))/(6.0d0*dz)
+    end do
+
+    ! Calculate radial velocity
+    vo = 0.0d0
+    do i = 2, n-1
+        vo(i) = (3.0d0/8.0d0)*dz*(uo(i) - uo(i-1))
+    end do
+
+end subroutine VelocityS
+
+subroutine thomas(aa, bb, cc, dd, q, n)
+    ! Arguments
+    integer, intent(in) :: n
+    real, intent(in) :: aa(n), bb(n), cc(n), dd(n)
+    real, intent(out) :: q(n)
+
+    ! Local variables
+    real :: bet(n), gam(n)
+    integer :: i
+
+    ! Initialize first elements
+    bet(1) = bb(1)
+    gam(1) = dd(1)/bb(1)
+
+    ! Forward elimination
+    do i = 2, n
+        bet(i) = bb(i) - (aa(i)*cc(i-1)/bet(i-1))
+        gam(i) = (dd(i) - aa(i)*gam(i-1))/bet(i)
+    end do
+
+    ! Back substitution
+    q(n) = gam(n)
+
+    do i = n-1, 1, -1
+        q(i) = gam(i) - (cc(i)*q(i+1)/bet(i))
+    end do
+
+end subroutine thomas
 
 !=======================================================================
 !==================== Cohort management ================================

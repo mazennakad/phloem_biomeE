@@ -16,7 +16,7 @@ CPPFLAGS+=" -DPhloem_test"
 #gfortran $FSRCS -o ess -I/Users/eweng/MACPORTS/gcc49-python3/include -L/Users/eweng/MACPORTS/gcc49-python3/lib -lnetcdff
 #gfortran src/datatypes.F90 src/io_mod.F90 src/soil.F90 src/vegetation.F90 src/BiomeE.F90 src/main.F90 -DHydro_test -o ess
 echo 'gfortran' $FSRCS $CPPFLAGS '-o ess'
-gfortran $FSRCS $CPPFLAGS -o ess
+gfortran $FSRCS $CPPFLAGS -o ess -llapack -lblas
 fparameter='./para_files/parameters_BCI_hydro.nml'
 echo $fparameter
 cat $fparameter > ./para_files/input.nml

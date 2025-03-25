@@ -24,6 +24,13 @@
  real, parameter :: p_sea   = 101325.  ! atmospheric pressure  (Pa)
  real, parameter :: f_PAR   = 0.5  ! Fraction of PAR in total solar radiation
  real, parameter :: rad_phot = 0.0000046 ! PAR conversion factor of J -> mol of quanta
+ integer, parameter :: ng = 100                      ! number of node cells for phloem analysis !!!!!!! mazen
+ real, parameter :: dz = 1/ng   ! grid size     mazen
+ real, parameter :: D = 4.0e-10                  ! Sucrose Diffusivity in water m2/s  mazen
+ real, parameter :: nu0  = 1.5e-3                 ! sap viscosity Pa s mazen
+ real, parameter :: ks   = 5e-14                  ! xylem-phloem membrane permeability m/(Pa s) mazen
+ real, parameter :: Tphloem     = 293.15               ! phloem temperature K (could be defined based on leaf T)
+
 
  ! Vegetation and soil types
  integer, parameter :: n_dim_soil_types = 9
@@ -250,6 +257,12 @@ type :: cohort_type
   real :: resg_stem = 0.0 ! growth respiration by stem or sapwood (daily)
   real :: growth_root   = 0.0 ! growth demand by root daily
   real :: growth_stem   = 0.0 ! growth demand by stem daily
+  real :: suc_con(ng) = 0.0 ! sucrose mass in the phloem
+  real :: ax_velo(ng-1) = 0.0 ! axial velocity
+  real :: phloem_p(ng) = 0.0 ! turgor pressure
+  real :: trans_velo(ng) = 0.0 ! transverse velocity
+  real :: dy_visco(ng) = 1.0 ! dynamic viscosity
+
 
   ! this needs to change vegn_growth subroutine
 
