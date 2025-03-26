@@ -185,6 +185,8 @@ subroutine BiomeE_run()
         vegn => vegn%next
       enddo
     enddo ! steps_per_day
+    print *, "Paused. Press Enter to continue..."
+    read(*, *)
     land%Tc_daily = land%Tc_daily/steps_per_day
 
     ! Daily update

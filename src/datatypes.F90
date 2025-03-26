@@ -24,8 +24,8 @@
  real, parameter :: p_sea   = 101325.  ! atmospheric pressure  (Pa)
  real, parameter :: f_PAR   = 0.5  ! Fraction of PAR in total solar radiation
  real, parameter :: rad_phot = 0.0000046 ! PAR conversion factor of J -> mol of quanta
- integer, parameter :: ng = 100                      ! number of node cells for phloem analysis !!!!!!! mazen
- real, parameter :: dz = 1/ng   ! grid size     mazen
+ integer, parameter :: ng = 10                      ! number of node cells for phloem analysis !!!!!!! mazen
+ real, parameter :: dz = 1.0/ng   ! grid size     mazen
  real, parameter :: D = 4.0e-10                  ! Sucrose Diffusivity in water m2/s  mazen
  real, parameter :: nu0  = 1.5e-3                 ! sap viscosity Pa s mazen
  real, parameter :: ks   = 5e-14                  ! xylem-phloem membrane permeability m/(Pa s) mazen

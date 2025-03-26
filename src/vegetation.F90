@@ -60,7 +60,7 @@ subroutine vegn_CNW_budget_fast(vegn, forcing)
   call vegn_photosynthesis(forcing, vegn)
 
   ! Phloem transport, Mazen Nakad, 10/08/2023
-!  call vegn_Phloem_transport(forcing,vegn)
+  call vegn_Phloem_transport(forcing,vegn)
 #else
   ! Water supply from soil directly
   call SoilWaterSupply(vegn)
@@ -1748,9 +1748,9 @@ subroutine vegn_Phloem_transport(forcing,vegn)
   real, allocatable :: nuo(:)    ! Dynamic viscosity at the center of the cell
   real, allocatable :: Psi(:)    ! Xylem water potential at the center of the cell
   real :: dx, L, a  ! diameter at breast height and tree height
-  real, allocatable :: Resp_s, GResp_s, Growth_s  ! stem demand sucrose g/(ms)
-  real, allocatable :: Resp_r, GResp_r, Growth_r  ! root demand sucrose g/(ms)
-  real, allocatable :: Psi_L, psi0             ! leaf water potential and its scaling
+  real :: Resp_s, GResp_s, Growth_s  ! stem demand sucrose g/(ms)
+  real :: Resp_r, GResp_r, Growth_r  ! root demand sucrose g/(ms)
+  real :: Psi_L, psi0             ! leaf water potential and its scaling
   real :: Sstem, Sstemr, Sstemg, Sroot, Sleaf
   ! scaling parameters
   real :: c0, cw, os, es, v0, u0, p0, t0, G, X0, Mu, Pe, Ss, Sl, Sr
@@ -1765,13 +1765,13 @@ subroutine vegn_Phloem_transport(forcing,vegn)
        L = cc%height
        dx = cc%dbh
        a  = sp%p_thickness
-       Resp_s =   cc%DR_stem*Mw_sucr*(1.0e3)/(12*mol_C)
+       Resp_s =   cc%DR_stem*Mw_sucr*(1.0e3)/(12*mol_C) ! g sucrose / step
        Resp_r =   cc%DR_root*Mw_sucr*(1.0e3)/(12*mol_C)
        GResp_s =   cc%DGR_stem*Mw_sucr*(1.0e3)/(12*mol_C)
        GResp_r =   cc%DGR_root*Mw_sucr*(1.0e3)/(12*mol_C)
        Growth_s =   cc%DG_stem*Mw_sucr*(1.0e3)/(12*mol_C)
        Growth_r =   cc%DG_root*Mw_sucr*(1.0e3)/(12*mol_C)
-       Sstem = (Resp_s + GResp_s + Growth_s)/(3600*L*pi*dx)
+       Sstem = (Resp_s + GResp_s + Growth_s)/(3600*L*pi*dx) ! g sucrose / m2 s
        Sroot = (Resp_r + GResp_r + Growth_r)/(3600*a*pi*dx)
        Sleaf = (Sstem*L + Sroot*a)/a
        Psi_L    = cc%psi_leaf*(1.0e6)  ! Pa
@@ -1819,6 +1819,7 @@ subroutine vegn_Phloem_transport(forcing,vegn)
         cc%suc_con, cc%ax_velo, cc%trans_velo, cc%phloem_p, cc%dy_visco)
        ! Deallocate arrays
        deallocate(co, uo, vo, po, nuo,Psi)
+       write(*,*)'vector',cc%suc_con
 
      end associate
   enddo
@@ -1848,11 +1849,12 @@ subroutine iterate(n, dz, Mu, X0, Pe, Sl, Ss, Sr, es, Psi, co, uo, vo, po, nuo, 
     ! Output parameters
     real, dimension(n), intent(out) :: ck, vk, pk, nuk
     real, dimension(n-1), intent(out) :: uk
+    real :: rms
 
 
     ! Local variables
     logical :: check_C
-    real, allocatable :: vector_S(:), Sk(:)
+    real(8), allocatable :: vector_S(:), Sk(:)
     integer :: vector_length
     integer :: iteration
 
@@ -1877,12 +1879,24 @@ subroutine iterate(n, dz, Mu, X0, Pe, Sl, Ss, Sr, es, Psi, co, uo, vo, po, nuo, 
         end if
 
         ! Call newton subroutine
-        call newton(n, dz, Mu, X0, Pe, Sl, Ss, Sr, es, Psi, &
-                   co, uo, vo, po, nuo, cw, vector_S, Sk)
+        call newton(n, dz, Mu, X0, Pe, Sl, Ss, Sr, es, Psi, co, uo, vo, po, nuo, cw, vector_S, Sk)
+
+        ! Compute RMS error
+        rms = sqrt(sum((vector_S - Sk)**2) / real(5*n-1))
+        write(*,*)"RMS",rms
 
         ! Check convergence
-        call check_convergence(vector_S, Sk, vector_length, check_C)
+        if (rms <= 1.0d-4) then
+            check_C = .false.
+        else
+            check_C = .true.
+        end if
 
+
+        ! Check convergence
+        !call check_convergence(vector_S, Sk, vector_length, check_C)
+        print *, "Paused. Press Enter to continue..."
+        read(*, *)
         ! Update solution vectors
         pk = Sk(1:n)
         uk = Sk(n+1:2*n-1)
@@ -1904,27 +1918,32 @@ subroutine iterate(n, dz, Mu, X0, Pe, Sl, Ss, Sr, es, Psi, co, uo, vo, po, nuo, 
 
 end subroutine iterate
 
-subroutine check_convergence(vector_S, Sk, size, check_C)
-    implicit none
-    ! Input parameters
-    integer, intent(in) :: size
-    real, intent(in), dimension(size) :: vector_S, Sk
-    ! Output parameter
-    logical, intent(out) :: check_C
-    ! Local variable
-    real :: rms
+!subroutine check_convergence(vector_S, Sk, size, check_C)
+!    ! Input parameters
+!    integer, intent(inout) :: size
+!    real, intent(inout) :: vector_S(:), Sk(:)
+!    ! Output parameter
+!    logical, intent(out) :: check_C
+!    ! Local variable
+!    real :: rms
+!    write(*,*)"size",size
+!    write(*,*)" "
+!    write(*,*)"vector_S",vector_S
+!
+!    ! Compute RMS error
+!    rms = sqrt(sum((vector_S - Sk)**2) / real(size))
+!    print *, "Paused. Press Enter to continue..."
+!    read(*, *)
 
-    ! Compute RMS error
-    rms = sqrt(sum((vector_S - Sk)**2) / dble(size))
 
     ! Check convergence
-    if (rms <= 1.0d-4) then
-        check_C = .false.
-    else
-        check_C = .true.
-    end if
+!    if (rms <= 1.0d-4) then
+!        check_C = .false.
+!    else
+!        check_C = .true.
+!    end if
 
-end subroutine check_convergence
+!end subroutine check_convergence
 
 
 subroutine newton(n, dz, Mu, X0, Pe, Sl, Ss, Sr, es, Psi, &
@@ -1938,7 +1957,7 @@ subroutine newton(n, dz, Mu, X0, Pe, Sl, Ss, Sr, es, Psi, &
     real, intent(in) :: c(n), u(n-1), v(n), p(n), nuDV(n), Psi(n)
 
     ! Output parameters
-    real, allocatable, intent(out) :: vector_S(:), Sk(:)
+    real(8), allocatable, intent(out) :: vector_S(:), Sk(:)
 
     ! Internal variables
     real, allocatable :: PP(:,:), PU(:,:), PV(:,:), PC(:,:), PN(:,:), F1(:)
@@ -1946,10 +1965,14 @@ subroutine newton(n, dz, Mu, X0, Pe, Sl, Ss, Sr, es, Psi, &
     real, allocatable :: VP(:,:), VU(:,:), VV(:,:), VC(:,:), VN(:,:), F3(:)
     real, allocatable :: CP(:,:), CU(:,:), CV(:,:), CC(:,:), CN(:,:), F4(:)
     real, allocatable :: NP(:,:), NU(:,:), NV(:,:), NC(:,:), NN(:,:), F5(:)
-    real, allocatable :: m(:,:), F(:), sol(:), Fk(:)
+    real(8), allocatable :: m(:,:), F(:), sol(:), Fk(:)
     real :: resk
     integer :: i
 
+    allocate(PP(n,n), PU(n, n-1),PV(n,n),PC(n,n),PN(n,n),F1(n))
+    allocate(UP(n-1,n), UU(n-1, n-1),UV(n-1,n),UC(n-1,n),UN(n-1,n),F2(n-1))
+    allocate(VP(n,n), VU(n, n-1),VV(n,n),VC(n,n),VN(n,n),F3(n))
+    allocate(CP(n,n), CU(n, n-1),CV(n,n),CC(n,n),CN(n,n),F4(n))
     ! Call BuildP subroutine
     call BuildP(n, dz, Mu, X0, Psi, c, p, nuDV, PP, PU, PV, PC, PN, F1)
 
@@ -1976,7 +1999,7 @@ subroutine newton(n, dz, Mu, X0, Pe, Sl, Ss, Sr, es, Psi, &
 
 
     ! Construct matrix m
-    allocate(m(5*n, 5*n))
+    allocate(m(5*n-1, 5*n-1))
     m = 0.0d0
     ! Populate m with sparse blocks (using dense representation)
     ! Upper blocks
@@ -1984,62 +2007,71 @@ subroutine newton(n, dz, Mu, X0, Pe, Sl, Ss, Sr, es, Psi, &
     m(1:n,n+1:2*n-1) = PU
     m(1:n,2*n:3*n-1) = PV
     m(1:n,3*n:4*n-1) = PC
-    m(1:n,4*n+1:5*n) = PN
+    m(1:n,4*n:5*n-1) = PN
 
     m(n+1:2*n-1,1:n)       = UP
     m(n+1:2*n-1,n+1:2*n-1) = UU
     m(n+1:2*n-1,2*n:3*n-1) = UV
     m(n+1:2*n-1,3*n:4*n-1) = UC
-    m(n+1:2*n-1,4*n+1:5*n) = UN
+    m(n+1:2*n-1,4*n:5*n-1) = UN
 
     m(2*n:3*n-1,1:n)       = VP
     m(2*n:3*n-1,n+1:2*n-1) = VU
     m(2*n:3*n-1,2*n:3*n-1) = VV
     m(2*n:3*n-1,3*n:4*n-1) = VC
-    m(2*n:3*n-1,4*n+1:5*n) = VN
+    m(2*n:3*n-1,4*n:5*n-1) = VN
 
     m(3*n:4*n-1,1:n)       = CP
     m(3*n:4*n-1,n+1:2*n-1) = CU
     m(3*n:4*n-1,2*n:3*n-1) = CV
     m(3*n:4*n-1,3*n:4*n-1) = CC
-    m(3*n:4*n-1,4*n+1:5*n) = CN
+    m(3*n:4*n-1,4*n:5*n-1) = CN
 
     m(4*n+1:5*n,1:n)       = NP
     m(4*n+1:5*n,n+1:2*n-1) = NU
     m(4*n+1:5*n,2*n:3*n-1) = NV
     m(4*n+1:5*n,3*n:4*n-1) = NC
-    m(4*n+1:5*n,4*n+1:5*n) = NN
+    m(4*n+1:5*n,4*n:5*n-1) = NN
 
     ! Construct F vector
-    allocate(F(5*n))
+    allocate(F(5*n-1))
     F = 0.0d0
     F(1:n)         = -F1
     F(n+1:2*n-1)   = -F2
     F(2*n:3*n-1)   = -F3
     F(3*n:4*n-1)   = -F4
-    F(4*n+1:5*n)   = -F5
+    F(4*n:5*n-1)   = -F5
 
     ! Solve the linear system: (m + 1e-6 * I) * sol = F
-    allocate(sol(5*n))
+    allocate(sol(5*n-1))
     ! Add regularization term to the diagonal
-    do i = 1, 5*n
+    do i = 1, 5*n-1
         m(i,i) = m(i,i) + 1e-6
     end do
+
+
     ! Call a linear solver (e.g., LAPACK) here. Placeholder:
     call linear_solver(m, F, sol)
 
+
     ! Construct vector_S by concatenating p, u, v, c, nu
-    allocate(vector_S(5*n))
+    allocate(vector_S(5*n-1))
     vector_S(1:n)          = p
     vector_S(n+1:2*n-1)    = u
     vector_S(2*n:3*n-1)    = v
     vector_S(3*n:4*n-1)    = c
-    vector_S(4*n+1:5*n)    = nuDV
+    vector_S(4*n:5*n-1)    = nuDV
 
     ! Compute Sk = vector_S + sol
-    allocate(Sk(5*n))
+    allocate(Sk(5*n-1))
     Sk = vector_S
     Sk = Sk + sol
+
+
+
+
+
+
 
     ! Extract updated variables from Sk
     ! pk  = Sk(1:n)
@@ -2077,28 +2109,32 @@ subroutine newton(n, dz, Mu, X0, Pe, Sl, Ss, Sr, es, Psi, &
     deallocate(VP, VU, VV, VC, VN, F3)
     deallocate(CP, CU, CV, CC, CN, F4)
     deallocate(NP, NU, NV, NC, NN, F5)
-    deallocate(m, F, sol, Fk, vector_S, Sk)
+    deallocate(m, F, sol)!, vector_S, Sk)
+
 
 end subroutine newton
 
 subroutine linear_solver(A, b, x)
 
     ! Input parameters
-    real, intent(in) :: A(:,:), b(:)
-    real, intent(out) :: x(size(b))
+    real(8), intent(in) :: A(:,:), b(:)
+    real(8), intent(out) :: x(size(b))
 
     ! Local variables
     integer :: n, lda, info
+    real(8), allocatable :: Alocal(:,:), blocal(:)
     integer, allocatable :: ipiv(:)
 
     n = size(b)
     lda = n
 
     ! Allocate pivot array
-    allocate(ipiv(n))
+    allocate(ipiv(n),Alocal(n,n),blocal(n))
+    Alocal = A
+    blocal = b
 
     ! Call LAPACK routine to solve Ax = b
-    call dgesv(n, 1, A, lda, ipiv, b, n, info)
+    call dgesv(n, 1, Alocal, lda, ipiv, blocal, n, info)
 
     ! Check for successful exit
     if (info /= 0) then
@@ -2110,7 +2146,7 @@ subroutine linear_solver(A, b, x)
     x = b
 
     ! Deallocate pivot array
-    deallocate(ipiv)
+    deallocate(ipiv,Alocal,blocal)
 
 end subroutine linear_solver
 
@@ -2335,7 +2371,6 @@ subroutine BuildC(n, dz, Pe, Sl, Ss, Sr, es, c, u, v, CP, CU, CV, CC, CN, F4)
     CV(n, n-1) = (7.0/45.0)*(Pe**2) * u(n-1) * c(n-1) / dz
     CV(1,1) = 0
 
-    allocate(F4(n))
     F4 = 0.0d0
 
     do i = 2, n-1
@@ -3069,7 +3104,8 @@ subroutine initialize_cohort_from_biomass(cc,btot,psi_s0,temp)   !!!!!!!!!!!!!!!
 
   !---- local vars ------------
   integer :: j
-  real :: c0, cw, os, es, v0, u0, p0, t0, G, X0, Mu, Pe
+  real :: c0, cw, os, es, v0, u0, p0, t0, G, X0, Mu, Pe, totcon
+
 
   allocate(Psi(ng))
 
@@ -3115,11 +3151,11 @@ subroutine initialize_cohort_from_biomass(cc,btot,psi_s0,temp)   !!!!!!!!!!!!!!!
     call plant_psi2water(cc)
 
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!mazen  should I do the same everywhere (use Tc_pheno)?
-    cc%bph = - ( 1000000*(cc%psi_leaf + cc%psi_stem)/(2*Rgas*(temp + 273.16)) )*(Mw_sucr*cc%height*sp%p_thickness*(PI*cc%DBH)**2) ! Kg sucrose
+    cc%bph = - ( 1000000*(cc%psi_leaf + cc%psi_stem)/(2*Rgas*(temp + 273.16)) )*(Mw_sucr*cc%height*sp%p_thickness*PI*cc%DBH) ! Kg sucrose
     cc%bph = cc%bph*(12*mol_C/Mw_sucr)
 
     ! Non-dimensional and scaling quantities
-    c0 = - cc%psi_leaf*(1.0e6)* Mw_sucr*(1.0e3) * PI * cc%dbh / (Rgas * Tphloem)
+    c0 = - cc%psi_leaf*(1.0e6)* Mw_sucr*(1.0e3) * PI * cc%dbh / (Rgas * Tphloem) ! g/m2
     cw = c0 / (Mw_sucr*(1.0e3) * PI * cc%dbh)
     os = Rgas * Tphloem * c0 / (Mw_sucr*(1.0e3) * PI * cc%dbh)
     es = sp%p_thickness / cc%height
@@ -3131,12 +3167,18 @@ subroutine initialize_cohort_from_biomass(cc,btot,psi_s0,temp)   !!!!!!!!!!!!!!!
     X0 = - cc%psi_leaf*(1.0e6) / os
     Mu = ks * nu0 * (cc%height**2) / (sp%p_thickness**3)
     Pe = sp%p_thickness * v0 / D
+
     ! xylem water potential
     call linspace(cc%psi_leaf*(1.0e6), cc%psi_stem*(1.0e6), ng, Psi) ! xylem water potential, linear Pa
-    Psi = - Psi / cc%psi_leaf*(1.0e6)
+    Psi =  Psi / (- cc%psi_leaf*(1.0e6))
     call initial(ng, Mu, G, X0, Pe, es, Psi, cw, cc%suc_con, cc%ax_velo, cc%dy_visco, cc%trans_velo, cc%phloem_p)
-    !cc%bph = - (12*mol_C/Mw_sucr)*( 100000*(cc%psi_leaf + cc%psi_stem)/( 2*Rgas*(temp + 273.16) ) )*( Mw_sucr*(cc%height)*(sp%p_thickness)*((PI*cc%DBH)**2) ) ! kgC
-    !write(*,*)'sugar',cc%bph
+    totcon = 0.5*( cc%suc_con(1) + cc%suc_con(ng) )*0.001*c0
+    do i =2,ng-1
+      totcon = totcon + cc%suc_con(i)*0.001*c0
+    end do
+    totcon = totcon*cc%height*dz*sp%p_thickness
+    !write(*,*)'vector',cc%suc_con
+
   end associate
 end subroutine initialize_cohort_from_biomass
 
@@ -3170,7 +3212,8 @@ subroutine guess(n, G, Mu, X0, Psi, cw, co, uo, vo, po, nuo)
 
     ! Calculate concentration
     do i = 1, n
-        co(i) = 3.0d0 * (G * dz * (dble(i) - 0.5d0) - X0 * Psi(i))
+        !co(i) = 3.0d0 * (G * dz * (dble(i) - 0.5d0) - X0 * Psi(i))
+        co(i) = 3.0d0 * ( - X0 * Psi(i))
     end do
 
     nuo = 1.0d0
@@ -3213,6 +3256,7 @@ subroutine VelocityS(co, nuo, Mu, Psi, X0, n, uo, vo, po)
     ! Calculate axial velocity
     do i = 1, n-1
         uo(i) = (nuo(i+1) + nuo(i))*(po(i) - po(i+1))/(6.0d0*dz)
+
     end do
 
     ! Calculate radial velocity
