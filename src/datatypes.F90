@@ -10,26 +10,26 @@
  real,    parameter :: seconds_per_day  = 24. * 3600.
 
  ! Physical constants
- real, parameter :: PI      = 3.1415926
- real, parameter :: rho_H2O = 1000.0 ! water density (kg m-3)
+ real(8), parameter :: PI      = 3.1415926
+ real(8), parameter :: rho_H2O = 1000.0 ! water density (kg m-3)
  real, parameter :: TFREEZE = 273.16
- real, parameter :: Rgas    = 8.314472 ! universal gas constant, J K-1 mol-1
- real, parameter :: mol_C   = 12.0e-3 ! molar mass of carbon, kg
+ real(8), parameter :: Rgas    = 8.314472 ! universal gas constant, J K-1 mol-1
+ real(8), parameter :: mol_C   = 12.0e-3 ! molar mass of carbon, kg
  real, parameter :: mol_air = 28.96440e-3 ! molar mass of air, kg
  real, parameter :: mol_CO2 = 44.00995e-3 ! molar mass of CO2,kg
  real, parameter :: mol_h2o = 18.0e-3 ! molar mass of water, kg
- real, parameter :: Mw_sucr = 0.3422965 ! molecular weight of sucrose, Kg/mol  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! mazen
+ real(8), parameter :: Mw_sucr = 0.3422965 ! molecular weight of sucrose, Kg/mol  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! mazen
  real, parameter :: cpair   = 1010.     ! air heat capapcity (J/kg/K)
  real, parameter :: H2OLv0  = 2.501e6   ! latent heat H2O (J/kg)
  real, parameter :: p_sea   = 101325.  ! atmospheric pressure  (Pa)
  real, parameter :: f_PAR   = 0.5  ! Fraction of PAR in total solar radiation
  real, parameter :: rad_phot = 0.0000046 ! PAR conversion factor of J -> mol of quanta
- integer, parameter :: ng = 10                      ! number of node cells for phloem analysis !!!!!!! mazen
- real, parameter :: dz = 1.0/ng   ! grid size     mazen
- real, parameter :: D = 4.0e-10                  ! Sucrose Diffusivity in water m2/s  mazen
- real, parameter :: nu0  = 1.5e-3                 ! sap viscosity Pa s mazen
- real, parameter :: ks   = 5e-14                  ! xylem-phloem membrane permeability m/(Pa s) mazen
- real, parameter :: Tphloem     = 293.15               ! phloem temperature K (could be defined based on leaf T)
+ integer, parameter :: ng = 100                      ! number of node cells for phloem analysis !!!!!!! mazen
+ real(8), parameter :: dz = 1.0_8/ng   ! grid size     mazen
+ real(8), parameter :: D = 4.0e-10                  ! Sucrose Diffusivity in water m2/s  mazen
+ real(8), parameter :: nu0  = 1.5e-3                 ! sap viscosity Pa s mazen
+ real(8), parameter :: ks   = 5e-14                  ! xylem-phloem membrane permeability m/(Pa s) mazen
+ real(8), parameter :: Tphloem     = 293.15               ! phloem temperature K (could be defined based on leaf T)
 
 
  ! Vegetation and soil types
@@ -244,24 +244,24 @@ type :: cohort_type
   real :: NPProot = 0.0 !
   real :: NPPwood = 0.0 !
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! mazen
-  real :: DR_stem  = 0.0 ! repiration demand by the stem Kg C/step
-  real :: DR_root  = 0.0 ! respiration demand by the root Kg C/step
-  real :: DGR_root = 0.0 ! growth respiration demand by root Kg C/step
-  real :: DGR_stem = 0.0 ! growth respiration demand by the stem (or sapwood)
-  real :: DG_root   = 0.0 ! growth demand by root Kg C/step
-  real :: DG_stem   = 0.0 ! growth demand by stem Kg C/step
+  real(8) :: DR_stem  = 0.0 ! repiration demand by the stem Kg C/step
+  real(8) :: DR_root  = 0.0 ! respiration demand by the root Kg C/step
+  real(8) :: DGR_root = 0.0 ! growth respiration demand by root Kg C/step
+  real(8) :: DGR_stem = 0.0 ! growth respiration demand by the stem (or sapwood)
+  real(8) :: DG_root   = 0.0 ! growth demand by root Kg C/step
+  real(8) :: DG_stem   = 0.0 ! growth demand by stem Kg C/step
   !where resg_root + resg_leaf + resg_seed + resg_stem = resg
-  real :: resg_root = 0.0 ! growth respiration by root (daily)
-  real :: resg_leaf = 0.0 ! growth respiration by the leaf (daily)
-  real :: resg_seed = 0.0 ! growth respiration by the seed (daily)
-  real :: resg_stem = 0.0 ! growth respiration by stem or sapwood (daily)
-  real :: growth_root   = 0.0 ! growth demand by root daily
-  real :: growth_stem   = 0.0 ! growth demand by stem daily
-  real :: suc_con(ng) = 0.0 ! sucrose mass in the phloem
-  real :: ax_velo(ng-1) = 0.0 ! axial velocity
-  real :: phloem_p(ng) = 0.0 ! turgor pressure
-  real :: trans_velo(ng) = 0.0 ! transverse velocity
-  real :: dy_visco(ng) = 1.0 ! dynamic viscosity
+  real(8) :: resg_root = 0.0 ! growth respiration by root (daily)
+  real(8) :: resg_leaf = 0.0 ! growth respiration by the leaf (daily)
+  real(8) :: resg_seed = 0.0 ! growth respiration by the seed (daily)
+  real(8) :: resg_stem = 0.0 ! growth respiration by stem or sapwood (daily)
+  real(8) :: growth_root   = 0.0 ! growth demand by root daily
+  real(8) :: growth_stem   = 0.0 ! growth demand by stem daily
+  real(8) :: suc_con(ng) = 0.0 ! sucrose mass in the phloem
+  real(8) :: ax_velo(ng-1) = 0.0 ! axial velocity
+  real(8) :: phloem_p(ng) = 0.0 ! turgor pressure
+  real(8) :: trans_velo(ng) = 0.0 ! transverse velocity
+  real(8) :: dy_visco(ng) = 0.0 ! dynamic viscosity
 
 
   ! this needs to change vegn_growth subroutine
@@ -640,7 +640,7 @@ real :: fNSNmax(0:MSPECIES) = 5 ! 5 ! multiplier for NSNmax as sum of potential 
 real :: transT(0:MSPECIES)  = 3 ! Years
 real :: f_cGap(0:MSPECIES)  = 0.1  ! The gaps between trees
 real :: LFR_rate(0:MSPECIES)= 1.0
-real :: p_thickness(0:MSPECIES) = 10.0E-6  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! mazen
+real :: p_thickness(0:MSPECIES) = 10.0E-6  ! m !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! mazen
 
 ! Leaf parameters
 real :: leaf_size(0:MSPECIES)= 0.04 !
