@@ -1744,6 +1744,7 @@ subroutine vegn_Phloem_transport(forcing,vegn)
   real(8) :: Sstem, Sstemr, Sstemg, Sroot, Sleaf
   ! scaling parameters
   real(8) :: c0, cw, os, es, v0, u0, p0, t0, G, X0, Mu, Pe, Ss, Sl, Sr
+  real(8) :: totcon
 
   ! ------------------
   tair = forcing%Tair -273.16   ! degC
@@ -1813,11 +1814,16 @@ subroutine vegn_Phloem_transport(forcing,vegn)
        call iterate(n, dz, Mu, X0, Pe, Sl, Ss, Sr, es, Psi, co, uo, vo, po, nuo, cw, &
         cc%suc_con, cc%ax_velo, cc%trans_velo, cc%phloem_p, cc%dy_visco)
         !totcon = 0.5_8*( cc%suc_con(1) + cc%suc_con(n) )
-        !do i =1,n-2
-        !  totcon = totcon + cc%suc_con(i)
-        !end do
-        !totcon = totcon*dz*c0*1e-3_8/(Pi*dx*Mw_sucr)
-        !write(*,*)'total concentration mol/m3 (like uniform)',totcon
+
+        !do j =2,n-1
+      !    totcon = totcon + cc%suc_con(j)
+      !  end do
+      !  totcon = totcon*L*a*dz*c0*(1e-3_8)*Pi*dx !last pi dx because the first part is in 2D (Kg in 2D)
+        ! in carbon mass
+      !  totcon = totcon/Mw_sucr !mol sucrose
+      !  totcon = 12*totcon   ! 12 moles of C within each mole
+      !  totcon = totcon*mol_C ! KgC
+        !write(*,*)'phloem KgC',totcon
 
         cc%suc_con = cc%suc_con*c0
         cc%ax_velo = cc%ax_velo*u0
@@ -1827,7 +1833,7 @@ subroutine vegn_Phloem_transport(forcing,vegn)
 
        ! Deallocate arrays
        deallocate(co, uo, vo, po, nuo,Psi)
-       write(*,*)'concentration last node',cc%suc_con(n)*1e-3_8/(L*Mw_sucr)
+       !write(*,*)'concentration last node',cc%suc_con(n)*1e-3_8/(L*Mw_sucr)
 
 
      end associate
@@ -1892,7 +1898,7 @@ subroutine iterate(n, dz, Mu, X0, Pe, Sl, Ss, Sr, es, Psi, co, uo, vo, po, nuo, 
 
         ! Compute RMS error
         rms = sqrt(sum((vector_S - Sk)**2) / real(5*n-1))
-        write(*,*)"RMS",rms
+        !write(*,*)"RMS",rms
 
         ! Check convergence
         if (rms <= 1.0e-8_8) then
@@ -1942,7 +1948,8 @@ subroutine iterate(n, dz, Mu, X0, Pe, Sl, Ss, Sr, es, Psi, co, uo, vo, po, nuo, 
 
         iteration = iteration + 1
     end do
-    write(*,*)"done with iteration:",iteration
+    !write(*,*)"done with iteration:",iteration
+    !write(*,*)"RMS",rms
 
     ! Deallocate temporary arrays
     deallocate(vector_S)

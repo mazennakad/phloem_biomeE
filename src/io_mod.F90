@@ -220,10 +220,12 @@ end subroutine Zero_diagnostics
   type(climate_data_type),intent(in):: forcing
   integer, intent(in) :: iyears,idoy,ihour,iday
   integer, intent(in) :: fno1, fno2
+  real(8) :: totcon
+  type(spec_data_type),   pointer :: sp
 
   !-------local var ------
   type(cohort_type), pointer :: cc    ! current cohort
-  integer :: i
+  integer :: i,j
 
 
   ! Tile summary
@@ -263,6 +265,19 @@ end subroutine Zero_diagnostics
     !write(fno1,'(4(I8,","))')vegn%n_cohorts
     do i = 1, vegn%n_cohorts
         cc => vegn%cohorts(i)
+        associate ( sp => spdata(cc%species))
+        totcon = 0.5_8*( cc%suc_con(1) + cc%suc_con(ng) )
+
+        do j =2,ng-1
+          totcon = totcon + cc%suc_con(j)
+        end do
+        totcon = totcon*cc%height*sp%p_thickness*dz*(1e-3_8)*Pi*cc%dbh !last pi dx because the first part is in 2D (Kg in 2D)
+        ! in carbon mass
+        totcon = totcon/Mw_sucr !mol sucrose
+        totcon = 12*totcon   ! 12 moles of C within each mole
+        totcon = totcon*mol_C ! KgC
+        end associate
+
         write(fno1,'(7(I8,","),40(F12.4,","))')vegn%tileID,          &
           iyears,idoy,ihour,cc%ccID,cc%species,cc%layer,  &
           cc%nindivs*10000,cc%dbh,cc%height,cc%Acrown,    &
@@ -274,6 +289,7 @@ end subroutine Zero_diagnostics
           1000*cc%DR_stem*Mw_sucr/(12*mol_C),    &
           1000*cc%DGR_stem*Mw_sucr/(12*mol_C),   &
           1000*cc%DG_stem*Mw_sucr/(12*mol_C),    &
+          totcon,                                &
 
 #ifdef Phloem_test
           !1000*cc%bph*Mw_sucr/(12*mol_C),        &
@@ -835,6 +851,7 @@ subroutine set_up_output_files(fno1,fno2,fno3,fno4,fno5,fno6)
          !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!mazen
          'Resp_r','Grow_Resp_r','Growth_r',      &
          'Resp_s','Grow_Resp_s','Growth_s',      &
+         'Phloem_KgC',                           &
 #ifdef Phloem_test
          'bph',                                  &
          'nsc',                                  &
